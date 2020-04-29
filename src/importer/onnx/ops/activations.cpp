@@ -22,7 +22,7 @@
 #include <hlir/ops/constant.h>
 #include <hlir/ops/reduce.h>
 #include <hlir/ops/unary.h>
-
+#include <hlir/ir_types.h>
 
 using namespace std;
 
@@ -51,6 +51,72 @@ void onnx_importer::convert_op_Relu(const NodeProto &node)
     output_tensors_.emplace(output, &max->output());
 }
 
+void onnx_importer::convert_op_Sigmoid(const NodeProto &node)
+{
+    assert(node.input().size() == 1);
+    assert(node.output().size() == 1);
+
+    const auto &input { node.input()[0] };
+    const auto &output { node.output()[0] };
+
+    auto in_shape = get_shape(input);
+
+    auto neg = graph_.emplace<unary>(unary_neg, in_shape);
+    auto exp = graph_.emplace<unary>(unary_exp, neg->output().shape());
+    auto one = graph_.emplace<constant>(1.f);
+    auto plus = graph_.emplace<binary>(binary_add, one->output().shape(), exp->output().shape(), value_range<float>::full());
+    auto div = graph_.emplace<binary>(binary_div, one->output().shape(), plus->output().shape(), value_range<float>::full());
+
+    exp->input().connect(neg->output());
+    plus->input_a().connect(one->output());
+    plus->input_b().connect(exp->output());
+    div->input_a().connect(one->output());
+    div->input_b().connect(plus->output());
+
+    input_tensors_.emplace(&neg->input(), input);
+    output_tensors_.emplace(output, &div->output());
+}
+
+void onnx_importer::convert_op_Clip(const NodeProto &node)
+{
+    fprintf(stderr, "clip!\n");
+    assert(node.input().size() > 1);
+    assert(node.output().size() == 1);
+
+    const auto &input { node.input()[0] };
+
+    if (node.input_size() == 2) {
+        fprintf(stderr, "min only!\n");
+        const auto &min_v { node.input()[1] };
+        const auto &output { node.output()[0] };
+
+        auto&& in_shape = get_shape(input);
+        auto max { graph_.emplace<binary>(binary_max, move(in_shape), get_shape(min_v), value_range<float>::full()) };
+        
+        input_tensors_.emplace(&max->input_b(), min_v);
+        input_tensors_.emplace(&max->input_a(), input);
+        output_tensors_.emplace(output, &max->output());
+    } else {
+        //fprintf(stderr, "min - max!\n");
+        const auto &min_v { node.input()[1] };
+        const auto &max_v { node.input()[2] };
+        const auto &output { node.output()[0] };
+
+        auto&& in_shape = get_shape(input);
+        //fprintf(stderr, "input shape is %s", hlir::to_string(in_shape).c_str());
+        auto max { graph_.emplace<binary>(binary_max, move(in_shape), move(get_shape(min_v)), value_range<float>::full()) };
+        auto min { graph_.emplace<binary>(binary_min, max->output().shape(), move(get_shape(max_v)), value_range<float>::full()) };
+        //fprintf(stderr, "after op\n");
+        min->input_a().connect(max->output());
+        //fprintf(stderr, "connected!\n");
+
+        input_tensors_.emplace(&min->input_b(), max_v);
+        input_tensors_.emplace(&max->input_b(), min_v);
+        input_tensors_.emplace(&max->input_a(), input);
+        output_tensors_.emplace(output, &min->output());
+    }
+}
+
 void onnx_importer::convert_op_LeakyRelu(const NodeProto &node)
 {
     assert(node.input().size() == 1);
@@ -69,6 +135,7 @@ void onnx_importer::convert_op_LeakyRelu(const NodeProto &node)
     mul->input_b().connect(alpha->output());
     max->input_b().connect(mul->output());
 
+    input_tensors_.emplace(&mul->input_a(), input);
     input_tensors_.emplace(&max->input_a(), input);
     output_tensors_.emplace(output, &max->output());
 }

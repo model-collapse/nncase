@@ -602,6 +602,10 @@ template<> xt::xarray<uint8_t> onnx_importer::to<xt::xarray<uint8_t>>(const onnx
 
 template<> xt::xarray<float> onnx_importer::to<xt::xarray<float>>(const onnx::TensorProto &tensor)
 {
+    if (tensor.data_type() != tensor_type<float>) {
+        fprintf(stderr, "here");
+    }
+
     assert(tensor.data_type() == tensor_type<float>);
 
     if (!tensor.float_data().empty())

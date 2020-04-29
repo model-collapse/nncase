@@ -50,23 +50,27 @@ namespace
     }
 }
 
+void onnx_importer::convert_op_GlobalAveragePool(const NodeProto& node)
+{
+    convert_pool(node, reduce_mean, 0.f, true);
+}
+
 void onnx_importer::convert_op_AveragePool(const NodeProto& node)
 {
-    convert_pool(node, reduce_mean, 0.f);
+    convert_pool(node, reduce_mean, 0.f, false);
 }
 
 void onnx_importer::convert_op_MaxPool(const NodeProto& node)
 {
-    convert_pool(node, reduce_max, numeric_limits<float>::max());
+    convert_pool(node, reduce_max, numeric_limits<float>::max(), false);
 }
 
-void onnx_importer::convert_pool(const NodeProto& node, const reduce_op_t reduce_op, const float init_value)
+void onnx_importer::convert_pool(const NodeProto& node, const reduce_op_t reduce_op, const float init_value, bool global)
 {
     const auto &input { node.input()[0] };
     const auto &output { node.output()[0] };
 
     auto input_shape { get_shape(input) };
-
     padding_mode pad_mode { padding_mode::notset };
 
     const auto &auto_pad_attr { get_attribute<string>(node, "auto_pad") };
@@ -76,8 +80,17 @@ void onnx_importer::convert_pool(const NodeProto& node, const reduce_op_t reduce
     }
 
     array<size_t, 2> dilations { 1, 1 };
-
-    const auto &kernel_shape { get_attribute<xtl::span<const int64_t>>(node, "kernel_shape").value() };
+    array<size_t, 2> kernel_shape {0, 0};
+    //shape_t global_kernel_size {input_shape[2], input_shape[3]};
+    const auto &kernel_shape_attr {get_attribute<xtl::span<const int64_t>>(node, "kernel_shape") };
+    if (global) {
+        kernel_shape[0] = input_shape[2];
+        kernel_shape[1] = input_shape[3];
+    } else {
+        const auto val { kernel_shape_attr.value() };
+        kernel_shape[0] = val[0];
+        kernel_shape[1] = val[1];
+    }
 
     array<size_t, 2> strides { 1, 1 };
 
