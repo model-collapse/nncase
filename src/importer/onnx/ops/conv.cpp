@@ -173,7 +173,7 @@ template<class Node> void onnx_importer::convert_conv(const NodeProto &node)
         if (!bias_initializer)
             throw runtime_error("Can't find initializer for bias input");
 
-        if (bias_initializer->data_type() != tensor_type<float>) {
+        if (bias_initializer->data_type() != TensorProto_DataType_FLOAT) {
             fprintf(stderr, "here");
         }
 
