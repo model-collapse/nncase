@@ -173,6 +173,10 @@ template<class Node> void onnx_importer::convert_conv(const NodeProto &node)
         if (!bias_initializer)
             throw runtime_error("Can't find initializer for bias input");
 
+        if (bias_initializer->data_type() != tensor_type<float>) {
+            fprintf(stderr, "here");
+        }
+
         bias_value = to<xt::xarray<float>>(*bias_initializer);
     }
 
