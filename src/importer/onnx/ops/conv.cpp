@@ -122,8 +122,8 @@ template<class Node> void onnx_importer::convert_conv(const NodeProto &node)
     const auto* weight_initializer { get_initializer(weight) };
 
     if (!weight_initializer)
-        //throw runtime_error("Can't find initializer for weight input");
-        fprintf(stderr, "Warning: Can't find initializer for weight input. If you are using a result tensor as kernel, you can just ignore this.\n");
+        throw runtime_error("Can't find initializer for weight input");
+        //fprintf(stderr, "Warning: Can't find initializer for weight input. If you are using a result tensor as kernel, you can just ignore this.\n");
 
     const auto& weight_shape { get_shape(*weight_initializer) };
 
