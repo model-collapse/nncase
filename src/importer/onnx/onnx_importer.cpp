@@ -562,7 +562,7 @@ template<> uint8_t onnx_importer::to<uint8_t>(const onnx::TensorProto &tensor)
 
 template<> axis_t onnx_importer::to<axis_t>(const onnx::TensorProto &tensor)
 {
-    assert(tensor.data_type() == tensor_type<std::int32_t>);
+    assert(tensor.data_type() == tensor_type<std::int32_t> || tensor.data_type() == tensor_type<std::int64_t>);
 
     switch (tensor.data_type())
     {
