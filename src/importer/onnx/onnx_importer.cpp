@@ -115,6 +115,18 @@ onnx_importer::onnx_importer(xtl::span<const uint8_t> model, hlir::graph &graph)
         throw std::runtime_error("Invalid ONNX model");
 }
 
+bool onnx_importer::has_initializer(const onnx::ValueInfoProto& input_info) {
+    const auto& graph { model_.graph() };
+
+    for (const auto& initializer : graph.initializer()) {
+        if (initializer.name() == input_info.name()) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void onnx_importer::import()
 {
     const auto& graph { model_.graph() };
@@ -122,9 +134,41 @@ void onnx_importer::import()
     for (const auto& node : graph.node())
         convert_op(node);
 
+    // create outputs
+    for (const auto& output_info : graph.output())
+    {
+        //fprintf(stderr, "true output: %s\n", output_info.name().c_str());
+        const auto& output_name { output_info.name() };
+        auto&& output_shape { get_shape(output_info) };
+        const auto output_dt { get_datatype(output_info) };
+        //fprintf(stderr, "size = [%s]\n", nncase::hlir::to_string(output_shape).c_str());
+        if (!output_dt)
+            throw runtime_error("Data type of output \"" + output_name + "\" is not supported");
+
+
+        auto node { graph_.emplace<output_node>(output_dt.value(), output_shape) };
+        node->name(output_name);
+             
+        input_tensors_.emplace(&node->input(), output_name);
+    }
+
+    std::set<std::string> tensors_used_by_input;
+    for (auto &&in : input_tensors_)
+    {
+        tensors_used_by_input.emplace(in.second);
+    }
+
     // create inputs
     for (const auto& input_info : graph.input())
     {
+        bool input_has_initializer = has_initializer(input_info);
+        if (input_has_initializer && 
+            tensors_used_by_input.find(input_info.name()) == tensors_used_by_input.end()) 
+        {
+            continue;
+        }
+
+        //fprintf(stderr, "true input: %s\n", input_info.name().c_str());
         const auto& input_name { input_info.name() };
         auto&& input_shape { get_shape(input_info) };
         const auto input_dt { get_datatype(input_info) };
@@ -132,31 +176,25 @@ void onnx_importer::import()
         if (!input_dt)
             throw runtime_error("Data type of input \"" + input_name + "\" is not supported");
 
-        auto node { graph_.emplace<input_node>(input_dt.value(), input_shape) };
-        node->name(input_name);
-
-        output_tensors_.emplace(input_name, &node->output());
+        if (input_has_initializer) {
+            const auto& initializer = get_initializer(input_name);
+            const auto& init_val = to<xt::xarray<float>>(*initializer);
+            xtl::span<const uint8_t> vec { reinterpret_cast<const uint8_t*>(init_val.data()), init_val.size() * sizeof(float) };
+            auto node { graph_.emplace<constant>(input_dt.value(), move(input_shape), vec) };
+            node->name(input_name);
+            output_tensors_.emplace(input_name, &node->output());
+        } else {
+            auto node { graph_.emplace<input_node>(input_dt.value(), input_shape) };
+            node->name(input_name);
+            output_tensors_.emplace(input_name, &node->output());
+        }
     }
 
-    // create outputs
-    for (const auto& output_info : graph.output())
-    {
-        const auto& output_name { output_info.name() };
-        auto&& output_shape { get_shape(output_info) };
-        const auto output_dt { get_datatype(output_info) };
-
-        if (!output_dt)
-            throw runtime_error("Data type of output \"" + output_name + "\" is not supported");
-
-        auto node { graph_.emplace<output_node>(output_dt.value(), output_shape) };
-        node->name(output_name);
-
-        input_tensors_.emplace(&node->input(), output_name);
-    }
-
+    //fprintf(stderr, "connecting tensors...\n");
     // connect tensors
     for (auto &&in : input_tensors_)
     {
+        //fprintf(stderr, "connecting with %s...\n", in.second);
         auto out_it = output_tensors_.find(in.second);
         if (out_it != output_tensors_.end())
         {
@@ -567,15 +605,32 @@ template<> axis_t onnx_importer::to<axis_t>(const onnx::TensorProto &tensor)
     switch (tensor.data_type())
     {
     case TensorProto_DataType_INT32:
-        assert(tensor.int32_data_size() > 0);
-        return { &(*tensor.int32_data().begin()), &(*tensor.int32_data().end()) };
-
+        if(tensor.int32_data_size() > 0) {
+            return { &(*tensor.int32_data().begin()), &(*tensor.int32_data().end()) };
+        } else {
+            int32_t byte_size = tensor.raw_data().size();
+            assert(byte_size > 0);
+            assert(byte_size % sizeof(int32_t) == 0);
+            int32_t arr_len = byte_size / sizeof(int32_t);
+            int32_t *ptr = (int32_t *)tensor.raw_data().c_str();
+            return {ptr, ptr+arr_len};
+        }
     case TensorProto_DataType_INT64:
     {
-        assert(tensor.int64_data_size() > 0);
         axis_t result;
+        if (tensor.int64_data_size() > 0) {
         transform(tensor.int64_data().begin(), tensor.int64_data().end(), back_inserter(result),
             [](const auto a) { return a; });
+        } else {
+            assert(tensor.raw_data().size() > 0);
+            int32_t byte_size = tensor.raw_data().size();
+            assert(byte_size > 0);
+            assert(byte_size % sizeof(int64_t) == 0);
+            int32_t arr_len = byte_size / sizeof(int64_t);
+            int64_t *ptr = (int64_t *)tensor.raw_data().c_str();
+            transform(ptr, ptr + arr_len, back_inserter(result),
+            [](const auto a) { return a; });
+        }
 
         return result;
     }

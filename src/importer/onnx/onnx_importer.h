@@ -84,6 +84,7 @@ namespace importer
         const onnx::TensorProto* get_initializer(const std::string &name) const;
         template<typename T> static T to(const onnx::TensorProto &tensor);
         template<typename T> static T convert_to(const onnx::TensorProto &tensor);
+        bool has_initializer(const onnx::ValueInfoProto& input_info);
 
         static constexpr std::size_t real_axis(const int axis, const std::size_t count) noexcept
         {

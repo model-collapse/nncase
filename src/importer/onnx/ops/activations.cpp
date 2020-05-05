@@ -97,7 +97,7 @@ void onnx_importer::convert_op_Clip(const NodeProto &node)
         input_tensors_.emplace(&max->input_a(), input);
         output_tensors_.emplace(output, &max->output());
     } else {
-        //fprintf(stderr, "min - max!\n");
+        fprintf(stderr, "min - max!\n");
         const auto &min_v { node.input()[1] };
         const auto &max_v { node.input()[2] };
         const auto &output { node.output()[0] };
@@ -113,6 +113,7 @@ void onnx_importer::convert_op_Clip(const NodeProto &node)
         input_tensors_.emplace(&min->input_b(), max_v);
         input_tensors_.emplace(&max->input_b(), min_v);
         input_tensors_.emplace(&max->input_a(), input);
+        //fprintf(stderr, "adding output for %s\n", output.c_str());
         output_tensors_.emplace(output, &min->output());
     }
 }
@@ -124,13 +125,14 @@ void onnx_importer::convert_op_LeakyRelu(const NodeProto &node)
 
     const auto &input { node.input()[0] };
     const auto &output { node.output()[0] };
-    auto&& in_shape = get_shape(input);
+    auto&& in_shape1 = get_shape(input);
+    auto&& in_shape2 = get_shape(input);
 
     const auto alpha_value { get_attribute<float>(node, "alpha").value() };
     const auto& alpha { graph_.emplace<constant>(get_datatype<float>(), alpha_value) };
 
-    auto mul = graph_.emplace<binary>(binary_mul, move(in_shape), alpha->output().shape(), value_range<float>::full());
-    auto max = graph_.emplace<binary>(binary_max, move(in_shape), mul->output().shape(), value_range<float>::full());
+    auto mul = graph_.emplace<binary>(binary_mul, move(in_shape1), alpha->output().shape(), value_range<float>::full());
+    auto max = graph_.emplace<binary>(binary_max, move(in_shape2), mul->output().shape(), value_range<float>::full());
 
     mul->input_b().connect(alpha->output());
     max->input_b().connect(mul->output());

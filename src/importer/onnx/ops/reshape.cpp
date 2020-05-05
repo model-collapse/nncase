@@ -39,6 +39,7 @@ void onnx_importer::convert_op_Reshape(const NodeProto& node)
 
     const auto* new_shape_initializer { get_initializer(shape) };
     fprintf(stderr, "reshape here, %s\n", node.name().c_str());
+    fprintf(stderr, "initializer name: %s\n", new_shape_initializer->name().c_str());
     axis_t new_shape;
 
     if (new_shape_initializer)
