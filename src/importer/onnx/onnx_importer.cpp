@@ -127,6 +127,16 @@ bool onnx_importer::has_initializer(const onnx::ValueInfoProto& input_info) {
     return false;
 }
 
+int32_t get_volume(nncase::hlir::shape_t shape) {
+    int32_t ret = 1;
+    for (nncase::hlir::shape_t::iterator iter = shape.begin();
+        iter < shape.end(); iter++) {
+        ret *= *iter;
+    }
+
+    return ret;
+}
+
 void onnx_importer::import()
 {
     const auto& graph { model_.graph() };
@@ -180,16 +190,22 @@ void onnx_importer::import()
             const auto& initializer = get_initializer(input_name);
             const auto& init_val = to<xt::xarray<float>>(*initializer);
             xtl::span<const uint8_t> vec { reinterpret_cast<const uint8_t*>(init_val.data()), init_val.size() * sizeof(float) };
+            if (vec.size() == 0) {
+                fprintf(stderr, "=====WTF=====\n");
+            }
             auto node { graph_.emplace<constant>(input_dt.value(), move(input_shape), vec) };
             node->name(input_name);
             output_tensors_.emplace(input_name, &node->output());
         } else {
+            fprintf(stderr, "true input: %s,%s,%s\n", input_name.c_str(), input_dt.value() == dt_float32 ? "float": "uint8", nncase::hlir::to_string(input_shape).c_str());
             auto node { graph_.emplace<input_node>(input_dt.value(), input_shape) };
             node->name(input_name);
             output_tensors_.emplace(input_name, &node->output());
         }
     }
 
+    int32_t max_vol = 0;
+    std::string largest_tensor_name;
     //fprintf(stderr, "connecting tensors...\n");
     // connect tensors
     for (auto &&in : input_tensors_)
@@ -204,7 +220,16 @@ void onnx_importer::import()
         {
             throw runtime_error("Cannot find associated output node for input " + string(in.second));
         }
+
+        int32_t vol = get_volume(out_it->second->shape());
+        if (vol > max_vol) {
+            max_vol = vol;
+            largest_tensor_name = in.second;
+        }
     }
+
+    auto largest_tensor = output_tensors_.find(largest_tensor_name);
+    fprintf(stderr, "largest input tensor: %s [%s]\n", largest_tensor_name.c_str(), nncase::hlir::to_string(largest_tensor->second->shape()).c_str());
 }
 
 void onnx_importer::convert_op(const NodeProto &node)

@@ -296,7 +296,7 @@ void quantize(const compile_options &options, target &target, graph &graph)
     // 4.1. Add quantization checkpoints
     std::cout << "  4.1. Add quantization checkpoints..." << std::endl;
     add_quantization_checkpoints(options, target, graph);
-
+    std::cout << "here" << std::endl;
     hlir::calibrate_method cali_method;
     if (options.calibrate_method == "no_clip")
         cali_method = hlir::calibrate_method::no_clip;
@@ -313,6 +313,7 @@ void quantize(const compile_options &options, target &target, graph &graph)
         }
     }
 
+    fprintf(stderr, "quantizing...\n");
     // quantize
     quantizer quant(cali_method, 2048);
     // 4.2 Get activation ranges

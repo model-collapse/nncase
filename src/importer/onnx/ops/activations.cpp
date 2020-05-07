@@ -79,14 +79,14 @@ void onnx_importer::convert_op_Sigmoid(const NodeProto &node)
 
 void onnx_importer::convert_op_Clip(const NodeProto &node)
 {
-    fprintf(stderr, "clip!\n");
+    //fprintf(stderr, "clip!\n");
     assert(node.input().size() > 1);
     assert(node.output().size() == 1);
 
     const auto &input { node.input()[0] };
 
     if (node.input_size() == 2) {
-        fprintf(stderr, "min only!\n");
+        //fprintf(stderr, "min only!\n");
         const auto &min_v { node.input()[1] };
         const auto &output { node.output()[0] };
 
@@ -97,7 +97,7 @@ void onnx_importer::convert_op_Clip(const NodeProto &node)
         input_tensors_.emplace(&max->input_a(), input);
         output_tensors_.emplace(output, &max->output());
     } else {
-        fprintf(stderr, "min - max!\n");
+        //fprintf(stderr, "min - max!\n");
         const auto &min_v { node.input()[1] };
         const auto &max_v { node.input()[2] };
         const auto &output { node.output()[0] };
@@ -129,7 +129,8 @@ void onnx_importer::convert_op_LeakyRelu(const NodeProto &node)
     auto&& in_shape2 = get_shape(input);
 
     const auto alpha_value { get_attribute<float>(node, "alpha").value() };
-    const auto& alpha { graph_.emplace<constant>(get_datatype<float>(), alpha_value) };
+    const auto& alpha { graph_.emplace<constant>(alpha_value) };
+    //fprintf(stderr, "cname = %s\n", alpha->name().c_str());
 
     auto mul = graph_.emplace<binary>(binary_mul, move(in_shape1), alpha->output().shape(), value_range<float>::full());
     auto max = graph_.emplace<binary>(binary_max, move(in_shape2), mul->output().shape(), value_range<float>::full());
