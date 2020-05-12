@@ -70,9 +70,9 @@ void image_dataset::process(const std::vector<uint8_t> &src, float *dest, const 
     {
         dest_img.forEach<cv::Vec3f>([&](cv::Vec3f v, const int *idx) {
             auto i = idx[0] * shape[2] + idx[1];
-            dest[i] = v[2];
+            dest[i] = v[0];
             dest[i + channel_size] = v[1];
-            dest[i + channel_size * 2] = v[0];
+            dest[i + channel_size * 2] = v[2];
         });
     }
     else if (shape[0] == 1)

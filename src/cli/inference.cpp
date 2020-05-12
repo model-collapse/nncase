@@ -63,10 +63,12 @@ struct eval_context
             out_filename.replace_extension(".bin");
 
             std::ofstream of(out_filename.string(), std::ios::binary | std::ios::out);
+            printf("Writing outputs....\n");
             for (size_t i = 0; i < interp.outputs_size(); i++)
             {
                 auto output = interp.memory_at<const char>(interp.output_at(i));
                 of.write(output.data(), output.size());
+                printf("Output Tensor: %d, size = %d\n", i, output.size());
             }
         }
     }
