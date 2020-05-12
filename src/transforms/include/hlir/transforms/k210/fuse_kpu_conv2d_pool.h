@@ -12,21 +12,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "../tflite_importer.h"
-#include <hlir/ops/reshape.h>
+#pragma once
+#include "../transform.h"
 
-using namespace nncase;
-using namespace nncase::importer;
-using namespace nncase::hlir;
-
-DEFINE_TFLITE_LOWER(RESHAPE)
+namespace nncase::hlir::transforms::k210
 {
-    auto &input = get_tensor(op.inputs(), 0);
-    auto &options = *op.builtin_options_as_ReshapeOptions();
-    auto new_shape = load_axis<int32_t>(get_tensor(op.inputs(), 1));
+class fuse_kpu_conv2d_pool_transform : public transform
+{
+public:
+    void process(transform_context &context) override;
 
-    auto node = graph_.emplace<reshape>(to_data_type(input.type()), get_shape(input.shape()), new_shape);
-
-    input_tensors_.emplace(&node->input(), op.inputs()->Get(0));
-    output_tensors_.emplace(op.outputs()->Get(0), &node->output());
+protected:
+    bool on_try_match(hlir::node &node, transform_context &context) override;
+};
 }

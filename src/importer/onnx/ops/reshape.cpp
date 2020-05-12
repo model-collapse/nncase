@@ -37,14 +37,13 @@ void onnx_importer::convert_op_Reshape(const NodeProto& node)
     const auto input_type { get_datatype(input).value() };
     const auto &input_shape { get_shape(input) };
 
-    const auto* new_shape_initializer { get_initializer(shape) };
-    //fprintf(stderr, "reshape here, %s\n", node.name().c_str());
-    //fprintf(stderr, "initializer name: %s\n", new_shape_initializer->name().c_str());
+    const auto &new_shape_initializer { get_initializer(shape) };
+
     axis_t new_shape;
 
     if (new_shape_initializer)
     {
-        new_shape = to<axis_t>(*new_shape_initializer);
+        new_shape = to<axis_t>(new_shape_initializer.value());
     }
     else
     {
