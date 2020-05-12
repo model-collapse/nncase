@@ -130,8 +130,10 @@ void onnx_importer::import()
 {
     const auto& graph { model_.graph() };
 
-    for (const auto& node : graph.node())
+    for (const auto& node : graph.node()) {
+        fprintf(stderr, "converting %s\n", node.name().c_str());
         convert_op(node);
+    }
 
     // create outputs
     for (const auto& output_info : graph.output())
